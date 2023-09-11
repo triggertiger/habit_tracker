@@ -2,12 +2,12 @@ from prettytable import PrettyTable
 
 def habit_options():
     habit_options = [{'name': 'do charity', 'frequency': '1w'}, 
-                            {'name': 'sports 4 times a week', 'frequency': '1w', 'completed': False}, 
-                            {'name': 'read a book', 'frequency': '1w', 'completed': False}, 
-                            {'name': 'sleep early', 'frequency': '1d', 'completed': False},
-                            {'name': 'vegan day', 'frequency': '1d', 'completed': False},
-                            {'name': 'not smoke', 'frequency': '1d', 'completed': False},
-                            {'name': 'other', 'frequency': '1d', 'completed': False}]
+                            {'name': 'sports 4 times a week', 'frequency': '1w'}, 
+                            {'name': 'read a book', 'frequency': '1w'}, 
+                            {'name': 'sleep early', 'frequency': '1d'},
+                            {'name': 'vegan day', 'frequency': '1d'},
+                            {'name': 'not smoke', 'frequency': '1d'},
+                            {'name': 'other', 'frequency': '1d'}]
 
     return habit_options
 

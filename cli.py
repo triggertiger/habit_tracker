@@ -1,7 +1,8 @@
 # system and file:
+import os
 import json
 import jsonpickle as jp
-import datetime
+from datetime import datetime, timedelta
 
 #cli tool
 import click
@@ -31,9 +32,10 @@ class Habit():
         self.habit_start_time = start_time
         self.habit_last_update = start_time
         self.streak = 0
-        self.streaks_list = []
+        self.streaks_log = []
         self.max_streak = 0
         self.completed = False
+        self.complete_date = None
 
 
 # cli tool group commands
@@ -46,12 +48,17 @@ class Habit():
 def cli(ctx, n, username):
     """Welcome to your Habit tracker!
     load data for existing users, or create new user for tracking your habits with the option -n.
+    for new users: data saved only after adding first habit. Good Luck!!
     """
-    
     # creating a new user instance 
     if n:
-        ctx.obj = habit.User(username)
-        click.echo(f'new user: {ctx.obj.username}')
+        path = f'./data/{username}.json'
+        if os.path.exists(path):
+            click.echo('user exists. Did you mean loading data without -n?')
+            exit()
+        else:    
+            ctx.obj = habit.User(username)
+            click.echo(f'new user: {ctx.obj.username}')
     
     # opening user object from file: 
     else: 
@@ -87,8 +94,8 @@ def get_habits(ctx, d, w):
     
     # create a table version of the main kpi's for each habit
     t = PrettyTable()
-    t.field_names = ['nr', 'habit name', 'current streak', 'longest streak', 'completed', 'last updated']
-    t.add_rows([[i+1, h.habit_name, h.streak, h.max_streak, h.completed, h.habit_last_update.date()] for i, h in enumerate(habit_list)])       
+    t.field_names = ['nr', 'habit name', 'start','curr. streak (days)', 'longest streak', 'completed', 'last updated']
+    t.add_rows([[i+1, h.habit_name, h.habit_start_time.date(), h.streak, h.max_streak, h.completed, h.habit_last_update.date()] for i, h in enumerate(habit_list)])       
     click.echo(t)        
 
 @cli.command()
@@ -127,7 +134,7 @@ def add_habit(ctx):
     h = int(click.getchar())
     
     # record start time for the habit
-    start_time = datetime.datetime.now()#.isoformat()
+    start_time = datetime.now()#.isoformat()
     
     # handle different choices - starting with 'other':
     if h==7:
@@ -183,9 +190,9 @@ def add_habit(ctx):
 @click.option('-f', is_flag=True, default=False, help='change frequency 1d/1w')
 @click.option('-s', is_flag=True, default=False, help='change status to completed')
 @click.pass_context
-def change_habit_status(ctx, f, s):
+def change_habit_settings(ctx, f, s):
     """
-    updates the habit frequency and status(ongoing/completed)"""
+    mark habits as completed or change frequency"""
     
     # current habit list:
     ctx.invoke(get_habits)
@@ -204,6 +211,7 @@ def change_habit_status(ctx, f, s):
         if status:
             if click.confirm('habit marked as completed. Resume?'):
                 ctx.obj.user_habit_list[i].completed = False
+                ctx.obj.user_habit_list[i].complete_date = None
                 click.echo('habit resumed')
             else:
                 click.echo('habit completed, no update done')
@@ -212,6 +220,7 @@ def change_habit_status(ctx, f, s):
         else:     
             click.echo('choose the number of habit you want to mark as completed:') 
             ctx.obj.user_habit_list[i].completed = True
+            ctx.obj.user_habit_list[i].complete_date = datetime.now()
             click.echo(f'{habit_list[i].habit_name} completed!')
     
     # handle change of frequency    
@@ -234,37 +243,43 @@ def change_habit_status(ctx, f, s):
 @click.pass_context
 def track_habit(ctx):
     """ update your periodical progress for each habit"""
-    habit_list = ctx.obj.user_habit_list
     
     # check for each habit the las update (by frequency), and asks for the next update. 
     # #this way no tracking periods are forgotten, also if the user forgot. 
-    for h in habit_list: 
+    for h in ctx.obj.user_habit_list: 
         if not h.completed:
             if h.habit_frequency == '1d':
-                interval = datetime.timedelta(seconds=24)
+                interval = timedelta(seconds=24)
                 question_phrase = 'today'
             else:
-                interval = datetime.timedelta(minutes=1)
+                interval = timedelta(minutes=1)
                 question_phrase = 'this week'
             
             try:
-                time_from_last_update = datetime.datetime.now() - datetime.datetime.fromisoformat(h.habit_last_update)    
+                time_from_last_update = datetime.now() - datetime.fromisoformat(h.habit_last_update)    
             except TypeError:
-                time_from_last_update = datetime.datetime.now() - h.habit_last_update
+                time_from_last_update = datetime.now() - h.habit_last_update
             
             if time_from_last_update >= interval:
                 
                 answer = click.prompt(f'did you meet the goal of {h.habit_name} {question_phrase} [y/n]?').lower()
+                # update current streak and check for maximal length
                 if answer == 'y':
                     h.streak +=1
+                    h.habit_last_update = h.habit_last_update + interval
+                    click.echo(f'current streak{h.streak}')
                     if h.streak > h.max_streak:
                         h.max_streak = h.streak
-                        h.habit_last_update = h.habit_last_update + interval
+                        
+                # terminate streak, send to streak log and restart current count:
                 elif answer == 'n':
-                    h.streaks_list.append(h.streak)
-                    h.streak = 0
-                    h.habit_last_update = h.habit_last_update + interval
+                    click.echo(f'current streak{h.streak}')
+                    streak_for_log = h.streak
+                    click.echo(streak_for_log)
+                    h.streaks_log.append(streak_for_log)
 
+                    h.habit_last_update = h.habit_last_update + interval
+                    click.echo(h.streaks_log)
                 else:
                     click.echo('Invalid input - aborting without change')
             else:
@@ -280,16 +295,22 @@ def track_habit(ctx):
 @click.option( '--1w', 'frequency', flag_value='1w',  help='choose watching weekly habits')
 
 def habit_score_charts(ctx, single, frequency):
-    """shows performance chart for habits"""
-    
+    """shows performance chart for habits - default: daily"""
+    #fig, (ax1, ax2) = plt.subplots(2)
+    #ax1 = plt.plot()
     habits = ctx.obj.user_habit_list
     for h in habits:
         if h.habit_frequency == frequency:
-            x = list(range(1, len(h.streaks_list) + 1))
-            y = h.streaks_list
+            x = list(range(1, len(h.streaks_log) + 1))
+            y = [streak for streak in h.streaks_log]
+
+            click.echo(h.habit_name)
+            click.echo(h.streaks_log)
+            click.echo(x)
+            click.echo(y)
             plt.plot(x, y, label=h.habit_name)
-    plt.xlabel('number of streaks')
-    plt.ylabel('streak length')
+    plt.xlabel='number of streaks'
+    plt.ylabel='streak length'
     plt.legend()
     plt.show()
         
@@ -298,14 +319,14 @@ def habit_score_charts(ctx, single, frequency):
         ctx.invoke(get_habits)
         i = int(click.prompt('choose a habit number to watch'))
         h = ctx.obj.user_habit_list[i - 1]
-        click.echo(h.streaks_list)
-        bar_titles = [f'streak {i}' for i in range(1, len(h.streaks_list) + 1)]
-        plt.bar(bar_titles, h.streaks_list, color= 'maroon')
+        click.echo(h.streaks_log)
+        bar_titles = [f'streak {i}' for i in range(1, len(h.streaks_log) + 1)]
+        streak_size = [s['length'] for s in h.streaks_log]
+        plt.bar(bar_titles, h.streaks_log, color= 'maroon')
         plt.xlabel('streaks')
         plt.ylabel('streaks length')
         plt.title(f'habit {h.habit_name} statistics')
         plt.show()    
 
- 
 if __name__ == '__main__':
    cli()
