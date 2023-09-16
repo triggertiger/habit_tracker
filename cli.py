@@ -2,7 +2,10 @@
 import os
 import json
 import jsonpickle as jp
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+from dateutil.relativedelta import relativedelta
+import numpy as np     
+import pandas as pd
 
 #cli tool
 import click
@@ -10,33 +13,11 @@ import utils
 from prettytable import PrettyTable
 
 # habit and user class:
-import habit
+from user import User 
+from habit import Habit
 
 # plots
 import matplotlib.pyplot as plt   
-
-# setting a similarly defined class for the User and Habit classes for structure availability:
-class User:
-    """ manages user data in a json string file"""
-    def __init__(self, username):
-        self.username = username
-        self.user_habit_list = []
-        self.filepath = f'./data/{self.username}.json'
-        
-        
-class Habit():
-    def __init__(self, habit_name, habit_frequency, start_time):
-        """ class Habit creates and manages the habit objects. """
-        self.habit_name = habit_name
-        self.habit_frequency = habit_frequency
-        self.habit_start_time = start_time
-        self.habit_last_update = start_time
-        self.streak = 0
-        self.streaks_log = []
-        self.max_streak = 0
-        self.completed = False
-        self.complete_date = None
-
 
 # cli tool group commands
 @click.group()
@@ -57,13 +38,23 @@ def cli(ctx, n, username):
             click.echo('user exists. Did you mean loading data without -n?')
             exit()
         else:    
-            ctx.obj = habit.User(username)
+            ctx.obj = User(username)
             click.echo(f'new user: {ctx.obj.username}')
-    
+            
     # opening user object from file: 
     else: 
-        ctx.obj = habit.set_user(username)
-        click.echo(f'loading data for {ctx.obj.username}')
+        path = f'./data/{username}.json'
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                current_user = jp.loads(json.load(f))
+                print('current user', current_user)
+            ctx.obj = User(current_user)
+            print(type(ctx.obj))
+            print(ctx.obj)
+            click.echo(f'loading data for {ctx.obj.username}')
+        else:
+            print('user not found. try creating a new user')
+
 
 @cli.command()
 @click.pass_context
@@ -84,8 +75,9 @@ def save_user(ctx):
 @click.option( '-w', is_flag=True, help='see only weekly habits')
 def get_habits(ctx, d, w):
     """ get a status for each of your habits"""
-    
     habit_list = ctx.obj.user_habit_list
+    print(habit_list[0].habit_start_time)
+    
     if d:
         habit_list = [habit for habit in habit_list if habit.habit_frequency == '1d']
     
@@ -94,8 +86,20 @@ def get_habits(ctx, d, w):
     
     # create a table version of the main kpi's for each habit
     t = PrettyTable()
-    t.field_names = ['nr', 'habit name', 'start','curr. streak (days)', 'longest streak', 'completed', 'last updated']
-    t.add_rows([[i+1, h.habit_name, h.habit_start_time.date(), h.streak, h.max_streak, h.completed, h.habit_last_update.date()] for i, h in enumerate(habit_list)])       
+    t.field_names = ['nr', 
+                     'habit name', 
+                     'start','curr. streak (days)',
+                     'longest streak', 
+                     'completed', 
+                     'last updated']
+    t.add_rows([[i+1, 
+                 h.habit_name, 
+                 h.habit_start_time.date(),
+                 h.streak, 
+                 h.max_streak, 
+                 h.completed, 
+                 h.habit_last_update.date()] 
+                    for i, h in enumerate(habit_list)])       
     click.echo(t)        
 
 @cli.command()
@@ -226,7 +230,7 @@ def change_habit_settings(ctx, f, s):
     # handle change of frequency    
     if f: 
         if click.confirm(f'{habit_list[i].habit_name} frequency is {habit_list[i].habit_frequency}. change?'):
-
+    
             if habit_list[i].habit_frequency == '1d':
                 ctx.obj.user_habit_list[i].habit_frequency = '1w'
             else: 
@@ -277,7 +281,7 @@ def track_habit(ctx):
                     streak_for_log = h.streak
                     click.echo(streak_for_log)
                     h.streaks_log.append(streak_for_log)
-
+                    h.streak = 0
                     h.habit_last_update = h.habit_last_update + interval
                     click.echo(h.streaks_log)
                 else:
@@ -286,32 +290,38 @@ def track_habit(ctx):
                 click.echo(f'habit {h.habit_name} is up to date')
     # save before exit
     ctx.invoke(save_user)
-
          
 @cli.command()
 @click.pass_context
 @click.option( '-s', '--single', is_flag=True, help='show streak chart for a single habit')
-@click.option( '--1d', 'frequency', flag_value='1d', default=True, help='daily habits presented by default')
-@click.option( '--1w', 'frequency', flag_value='1w',  help='choose watching weekly habits')
+@click.option( '-d', 'frequency', flag_value='1d', default=True, help='daily habits presented by default')
+@click.option( '-w', 'frequency', flag_value='1w',  help='choose watching weekly habits')
 
 def habit_score_charts(ctx, single, frequency):
     """shows performance chart for habits - default: daily"""
-    #fig, (ax1, ax2) = plt.subplots(2)
-    #ax1 = plt.plot()
+    fig, (ax1, ax2) = plt.subplots(2, figsize=(10, 8))
     habits = ctx.obj.user_habit_list
+    
+    x2 = []
+    y2_ticks = []
     for h in habits:
         if h.habit_frequency == frequency:
-            x = list(range(1, len(h.streaks_log) + 1))
-            y = [streak for streak in h.streaks_log]
-
-            click.echo(h.habit_name)
-            click.echo(h.streaks_log)
-            click.echo(x)
-            click.echo(y)
-            plt.plot(x, y, label=h.habit_name)
-    plt.xlabel='number of streaks'
-    plt.ylabel='streak length'
-    plt.legend()
+            x1 = list(range(1, len(h.streaks_log) + 1))
+            y1 = [streak for streak in h.streaks_log]
+            ax1.plot(x1, y1, label=h.habit_name)
+            
+            success_rate = (1 - len(h.streaks_log) / sum(h.streaks_log))*100
+            x2.append(int(success_rate))
+            y2_ticks.append(h.habit_name)
+            
+    ax1.set(xlabel='number of streaks')
+    ax1.set(ylabel='streak length')
+    ax1.legend()
+    
+    y2 = list(range(1, len(x2) + 1))
+    ax2.barh(y2, x2, align='center')
+    ax2.set_yticks(y2, labels= y2_ticks)
+    ax2.set_xlabel('Performance (%)')
     plt.show()
         
     # chose a single habit for which to show data:    
@@ -321,12 +331,52 @@ def habit_score_charts(ctx, single, frequency):
         h = ctx.obj.user_habit_list[i - 1]
         click.echo(h.streaks_log)
         bar_titles = [f'streak {i}' for i in range(1, len(h.streaks_log) + 1)]
-        streak_size = [s['length'] for s in h.streaks_log]
+        fig = plt.figure(figsize=(10, 4))
         plt.bar(bar_titles, h.streaks_log, color= 'maroon')
         plt.xlabel('streaks')
         plt.ylabel('streaks length')
         plt.title(f'habit {h.habit_name} statistics')
         plt.show()    
+
+@cli.command()
+@click.pass_context
+def monthly_scores(ctx):
+    today = datetime.today().date()
+    last_month = today - relativedelta(months=+1)
+    days_list = np.arange(today, last_month, relativedelta(days=-1)).tolist()
+    days_list = list(map(lambda x: x.date(), days_list))
+    df = pd.DataFrame(index=days_list)
+
+    for i, h in enumerate(ctx.obj.user_habit_list):
+        
+        # collecting streaks and counting them sorted backwards: 
+        streaks = h.streaks_log + [h.streak]
+        streaks.reverse()
+
+        # converting results to user-friendly view
+        scores_list = []
+        for s in streaks:
+            if s == 0:
+                scores_list += ['_']
+            
+            # limiting the list to length of one month:
+            else:
+                remaining_size = df.shape[0] - len(scores_list)
+                if remaining_size > s:
+                    scores_list += s * ['x']
+                else:
+                    scores_list += remaining_size * ['x']
+                
+            if len(scores_list) >= df.shape[0]:
+                break
+        df[h.habit_name] = scores_list
+        
+        #handling habits shorter than one month 
+        if len(scores_list) < df.shape[0]:
+            remaining_size = df.shape[0] - len(scores_list)
+            scores_list += remaining_size * ["--"]
+        
+    click.echo(df)   
 
 if __name__ == '__main__':
    cli()
