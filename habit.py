@@ -1,10 +1,10 @@
-import datetime
+from datetime import datetime, timedelta
 import json
 import os
-import jsonpickle as jp
+#import jsonpickle as jp
 import matplotlib.pyplot as plt
 import schedule
-
+from streak import Streak
 
 class Habit():
     """
@@ -16,8 +16,8 @@ class Habit():
         self.habit_start_time = start_time
         self.habit_last_update = start_time
         self.streak = 0
-        self.streaks_log = []
         self.max_streak = 0
+        self.info = Streak()
         self.completed = False
         self.complete_date = None
     
@@ -28,10 +28,10 @@ class Habit():
         while self.completed == False:
             if self.habit_frequency == '1d':
                 schedule.every(15).seconds.do(self.reminder_input_allocator)
-                
-            if self.habit_frequency == '1w':
+                               
+            else:
                 schedule.every(25).seconds.do(self.reminder_input_allocator)  
-        
+                
         
     # create a method to track the habits by user input: 
     def reminder_input_allocator(self):
@@ -45,11 +45,13 @@ class Habit():
         
         # activation: input and update to streak/ streak list according to answer
         while True:
+            self.stats.total_period += 1
             answer = input(reminder_msg).lower()
                         
             # if answer yes, the streak continues
             if answer == 'y':
                 self.streak += 1
+                self.stats.success_period += 1
                 if self.streak > self.max_streak:
                     self.max_streak = self.streak
                     print(f' Great!! your longest streak so far! keep it up!\n***reminding every 15 seconds for demonstration')
@@ -59,7 +61,7 @@ class Habit():
             
             # if answer no, the streak goes to streak list and count is re-initialized            
             elif answer == 'n':
-                self.streaks_log.append(self.streak)
+                self.stats.log.append(self.streak)
                 print(f'Great! You made a streak of {self.streak} !!\n***reminding every 15 seconds for demonstration')
                 self.streak = 0
                 print('streak initialized', self.streak)
@@ -71,14 +73,14 @@ class Habit():
     def complete_habit(self):
         """sets habit status to completed"""
         self.completed = True
-        self.habit_last_update = datetime.datetime.now().isoformat()
-        self.streak_list.append(self.streak)
+        self.habit_last_update = datetime.now().isoformat()
+        self.stats.log.append(self.streak)
         
     def analyze(self):
         """visualise habit performance"""
         fig  = plt.figure(figsize= (5, 5))
-        nr_of_streaks = list(range(1,len(self.streaks_log)))
-        plt.bar(nr_of_streaks, self.streaks_log, width= 0.4, color= 'maroon')
+        nr_of_streaks = list(range(1,len(self.stats.log)))
+        plt.bar(nr_of_streaks, self.stats.log, width= 0.4, color= 'maroon')
         
         plt.xlabel(self.habit_name)
         plt.ylabel('streaks duration')

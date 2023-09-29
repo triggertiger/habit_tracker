@@ -1,9 +1,8 @@
-import datetime
+from datetime import datetime, timedelta
 import json
 import os
-import jsonpickle as jp
+#import jsonpickle as jp
 import matplotlib.pyplot as plt
-from tabulate import tabulate
 from habit import Habit
 
 
@@ -52,7 +51,7 @@ class User:
         
         return habit_chosen
     
-    def create_habit(self):
+    def create_habit(self, start_time=None):
         """
         creates new habit.
         if habit is chosen from the list, attributes are preset. 
@@ -60,7 +59,8 @@ class User:
         saves the habit in the current username's list
         """
         habit_chosen = self.get_input_new_habit()
-        start_time = datetime.datetime.now().isoformat()
+        if start_time == None:
+            start_time = datetime.now().isoformat()
         
         # get the correct frequency for the new habit: 
         if int(habit_chosen) == 7:
@@ -134,11 +134,18 @@ if __name__ == '__main__':
         else:
             print('user not found. try creating a new user')
             return
+    
+    bla = create_new_user()
+    starting_times = [45, 40, 35, 30, 25, 20, 12, 7, 1]
+    counter = 0
+    for i in starting_times:
         
-    # bla = create_new_user()
-    # bla.create_habit()
-    # print('saved data',bla.user_habit_list[0].habit_name)
-    # bla.user_json_encode()        
-    bla_uploaded = set_user('ww')
+        start_time = (datetime.now() - timedelta(days=i))
+        bla.create_habit(start_time=start_time)
+        
+        print('saved data',bla.user_habit_list[counter].habit_name)
+        counter += 1
+    bla.user_json_encode()        
+    bla_uploaded = set_user('tim')
     print(type(bla_uploaded))        
     print('uploaded data: ', bla_uploaded.user_habit_list[0].habit_name)
