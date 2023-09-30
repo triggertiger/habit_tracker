@@ -1,4 +1,4 @@
 echo hello, installing requirements
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 python cli.py tim get-habits
 
