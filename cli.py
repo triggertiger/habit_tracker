@@ -28,7 +28,7 @@ def cli(ctx, n, username):
     """
     # new user instance 
     if n:
-        path = f'../data/{username}.json'
+        path = f'./data/{username}.json'
         if os.path.exists(path):
             click.echo('user exists. Did you mean loading data without -n?')
             exit()
@@ -38,7 +38,7 @@ def cli(ctx, n, username):
             
     # opening user object from file: 
     else: 
-        path = f'../data/{username}.json'
+        path = f'./data/{username}.json'
         if os.path.exists(path):
             with open(path, 'r') as f:
                 current_user = jp.loads(json.load(f))
@@ -234,7 +234,7 @@ def track_habit(ctx):
     ctx.invoke(save_user)
          
 cli.add_command(stats.get_habits)
-cli.add_command(stats.habit_score_charts)
+cli.add_command(stats.score_charts)
 cli.add_command(stats.monthly_scores)
 
 

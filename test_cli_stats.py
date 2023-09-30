@@ -24,9 +24,9 @@ class StatsHabitTest(unittest.TestCase):
         self.assertIn('do charity', result.output)
         self.assertEqual(result.exit_code, 0)
     
-    def test_habit_score_charts(self):
+    def test_score_charts(self):
         runner = CliRunner()
-        result = runner.invoke(cli, ['tim', 'habit-score-charts'])
+        result = runner.invoke(cli, ['tim', 'score-charts'])
         self.assertEqual(result.exit_code, 0)
         
     def test_habit_score_charts_single(self):

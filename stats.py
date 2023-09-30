@@ -53,7 +53,7 @@ def get_habits(ctx, d, w):
 @click.option( '-d', 'frequency', flag_value='1d', default=True, help='daily habits presented by default')
 @click.option( '-w', 'frequency', flag_value='1w',  help='choose watching weekly habits')
 
-def habit_score_charts(ctx, single, frequency):
+def score_charts(ctx, single, frequency):
     """shows performance chart for habits - default: daily"""
     fig, (ax1, ax2) = plt.subplots(2, figsize=(10, 8))
     habits = ctx.obj.user_habit_list
