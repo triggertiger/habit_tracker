@@ -22,11 +22,19 @@ Useful help hints with feature --help for every command
 * command get-habits for tim will be called automatically for demonstration. You can repeat it with python cli.py tim get-habits
 
 ### Requirements: 
+
 click
+
 jsonpickle
+
 matplotlib
+
 numpy
+
 pandas
+
 prettytabl
+
 python-dateutil
+
 schedule
